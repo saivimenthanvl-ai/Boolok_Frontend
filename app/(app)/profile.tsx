@@ -954,6 +954,7 @@ export default function ProfessionalUserProfileScreen() {
   const [reelLocation, setReelLocation] = useState('');
   const [reelUrl, setReelUrl] = useState('');
   const [attachedVideo, setAttachedVideo] = useState<string | null>(null);
+  const attachedVideoInfoRef = useRef<{ mimeType?: string | null; fileName?: string | null } | null>(null);
   const [isPublishingReel, setIsPublishingReel] = useState(false);
 
   // User's own reels
@@ -1976,7 +1977,9 @@ export default function ProfessionalUserProfileScreen() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setAttachedVideo(result.assets[0].uri);
+        const asset = result.assets[0];
+        attachedVideoInfoRef.current = { mimeType: asset.mimeType, fileName: asset.fileName };
+        setAttachedVideo(asset.uri);
       }
     } catch (error) {
       console.error('Video pick error:', error);
@@ -2094,10 +2097,13 @@ export default function ProfessionalUserProfileScreen() {
             formData.append('poster', frameFile);
           }
         } else {
+          const info = attachedVideoInfoRef.current;
+          const mimeType = info?.mimeType || (/\.mov$/i.test(attachedVideo) ? 'video/quicktime' : 'video/mp4');
+          const ext = mimeType.includes('quicktime') ? 'mov' : mimeType.includes('webm') ? 'webm' : 'mp4';
           (formData as any).append('video', {
             uri: attachedVideo,
-            name: `reel_${Date.now()}.mp4`,
-            type: 'video/mp4',
+            name: info?.fileName || `reel_${Date.now()}.${ext}`,
+            type: mimeType,
           });
         }
         formData.append('title', reelTitle.trim());
