@@ -29,7 +29,7 @@ import BoolokLogo from '../../components/BoolokLogo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { API_BASE_URL, resolveImageUrl } from '../../lib/api';
 import { formatSmartDateTime } from '../../lib/dateTime';
-import { getReelCoverUrl } from '../../lib/reelMedia';
+import { captureVideoFrame, getReelCoverUrl } from '../../lib/reelMedia';
 import ReelThumbnail from '../../components/ReelThumbnail';
 
 // ── Shared follow tracker ───────────────────────────────────────────────────
@@ -954,6 +954,7 @@ export default function ProfessionalUserProfileScreen() {
   const [reelLocation, setReelLocation] = useState('');
   const [reelUrl, setReelUrl] = useState('');
   const [attachedVideo, setAttachedVideo] = useState<string | null>(null);
+  const attachedVideoInfoRef = useRef<{ mimeType?: string | null; fileName?: string | null } | null>(null);
   const [isPublishingReel, setIsPublishingReel] = useState(false);
 
   // User's own reels
@@ -1976,7 +1977,9 @@ export default function ProfessionalUserProfileScreen() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setAttachedVideo(result.assets[0].uri);
+        const asset = result.assets[0];
+        attachedVideoInfoRef.current = { mimeType: asset.mimeType, fileName: asset.fileName };
+        setAttachedVideo(asset.uri);
       }
     } catch (error) {
       console.error('Video pick error:', error);
@@ -2053,7 +2056,7 @@ export default function ProfessionalUserProfileScreen() {
       }
     } catch (error: any) {
       console.error('Failed to create post:', error);
-      alertMsg('Property listing published to your live network.');
+      alertMsg(error.response?.data?.message || 'Could not publish the listing. Please try again.');
     } finally {
       setIsPublishing(false);
     }
@@ -2070,50 +2073,73 @@ export default function ProfessionalUserProfileScreen() {
       alertMsg('Please attach a video file from Local/Drive or enter a video link.');
       return;
     }
-
-    setIsPublishingReel(true);
-    const newReelObj = {
-      _id: `reel-${Date.now()}`,
-      title: reelTitle.trim(),
-      location: reelLocation.trim() || 'Coventry, United Kingdom',
-      aiMatch: Math.floor(Math.random() * 4) + 96,
-      insight: 'Strong engagement expected based on similar recent listings.',
-      likes: 0,
-      likesCount: 0,
-      comments: [],
-      commentsCount: 0,
-      videoUrl: reelUrl.trim() || attachedVideo || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=1200',
-    };
-
-    setUserReels((prev) => [newReelObj, ...prev]);
-    setData((prev: any) => ({
-      ...prev,
-      reelCount: (prev?.reelCount || 0) + 1,
-      reels: [newReelObj, ...(prev?.reels || [])],
-    }));
-
-    try {
-      const token = await getToken();
-      await axios.post(
-        `${API_BASE_URL}/api/reels`,
-        {
-          title: reelTitle.trim(),
-          location: reelLocation.trim(),
-          videoUrl: reelUrl.trim() || attachedVideo,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (error) {
-      console.log('Reel saved to live state.');
+    if (!attachedVideo && !/^https?:\/\//i.test(reelUrl.trim())) {
+      alertMsg('Please enter a full video link starting with http:// or https://.');
+      return;
     }
 
-    setReelTitle('');
-    setReelLocation('');
-    setReelUrl('');
-    setAttachedVideo(null);
-    setIsPublishingReel(false);
-    alertMsg('Real estate video reel published successfully!');
+    setIsPublishingReel(true);
+    try {
+      const token = await getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      let res;
+      if (attachedVideo) {
+        const formData = new FormData();
+        if (Platform.OS === 'web') {
+          const blob = await (await fetch(attachedVideo)).blob();
+          const mimeType = blob.type || 'video/mp4';
+          const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('quicktime') ? 'mov' : 'mp4';
+          formData.append('video', new File([blob], `reel_${Date.now()}.${ext}`, { type: mimeType }));
+          const frame = await captureVideoFrame(attachedVideo);
+          if (frame) {
+            const frameFile = new File([frame], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            formData.append('thumbnail', frameFile);
+            formData.append('poster', frameFile);
+          }
+        } else {
+          const info = attachedVideoInfoRef.current;
+          const mimeType = info?.mimeType || (/\.mov$/i.test(attachedVideo) ? 'video/quicktime' : 'video/mp4');
+          const ext = mimeType.includes('quicktime') ? 'mov' : mimeType.includes('webm') ? 'webm' : 'mp4';
+          (formData as any).append('video', {
+            uri: attachedVideo,
+            name: info?.fileName || `reel_${Date.now()}.${ext}`,
+            type: mimeType,
+          });
+        }
+        formData.append('title', reelTitle.trim());
+        formData.append('location', reelLocation.trim());
+        res = await axios.post(`${API_BASE_URL}/api/reels`, formData, {
+          headers,
+          timeout: 0,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        });
+      } else {
+        res = await axios.post(
+          `${API_BASE_URL}/api/reels`,
+          { title: reelTitle.trim(), location: reelLocation.trim(), videoUrl: reelUrl.trim() },
+          { headers }
+        );
+      }
+
+      const savedReel = res.data;
+      setUserReels((prev) => [savedReel, ...prev]);
+      setData((prev: any) => ({
+        ...prev,
+        reelCount: (prev?.reelCount || 0) + 1,
+        reels: [savedReel, ...(prev?.reels || [])],
+      }));
+      setReelTitle('');
+      setReelLocation('');
+      setReelUrl('');
+      setAttachedVideo(null);
+      alertMsg('Real estate video reel published successfully!');
+    } catch (error: any) {
+      console.error('Failed to publish reel:', error);
+      alertMsg(error.response?.data?.message || 'Could not publish the reel. Please try again.');
+    } finally {
+      setIsPublishingReel(false);
+    }
   };
 
   const toggleFollow = async () => {
@@ -2746,7 +2772,201 @@ export default function ProfessionalUserProfileScreen() {
           </View>
         </View>
 
+        {/* ═══════════════════════════════════════════════════════════════════════
+            CREATE LISTING / REEL MODAL (FOR SELF)
+        ════════════════════════════════════════════════════════════════════════ */}
+        {isSelf && (
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor, marginTop: 16 }]}>
+            <Text style={[styles.sectionHeading, { color: textPrimary }]}>Publish Property Listing or Video Reel</Text>
 
+            {/* Type Selector */}
+            <View style={styles.createTypeRow}>
+              <Pressable
+                onPress={() => setCreateType('post')}
+                style={[
+                  styles.createTypeBtn,
+                  { backgroundColor: createType === 'post' ? goldPrimary : (isDark ? '#162235' : '#E2E8F0') },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="home-plus-outline"
+                  size={18}
+                  color={createType === 'post' ? '#000000' : (isDark ? '#ffffff' : '#0f172a')}
+                />
+                <Text
+                  style={[
+                    styles.createTypeBtnText,
+                    { color: createType === 'post' ? '#000000' : (isDark ? '#ffffff' : '#0f172a') },
+                  ]}
+                >
+                  Property Listing
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setCreateType('reel')}
+                style={[
+                  styles.createTypeBtn,
+                  { backgroundColor: createType === 'reel' ? goldPrimary : (isDark ? '#162235' : '#E2E8F0') },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="video-vintage"
+                  size={18}
+                  color={createType === 'reel' ? '#000000' : (isDark ? '#ffffff' : '#0f172a')}
+                />
+                <Text
+                  style={[
+                    styles.createTypeBtnText,
+                    { color: createType === 'reel' ? '#000000' : (isDark ? '#ffffff' : '#0f172a') },
+                  ]}
+                >
+                  Upload Video Reel / Tour
+                </Text>
+              </Pressable>
+            </View>
+
+            {createType === 'post' ? (
+              <>
+                <TextInput
+                  placeholder="Property Title (e.g. Luxury Modern French Manor Estate)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor }]}
+                  value={postTitle}
+                  onChangeText={setPostTitle}
+                />
+                <TextInput
+                  placeholder="Asking Price (e.g. $8,900,000)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postPrice}
+                  onChangeText={setPostPrice}
+                />
+                <TextInput
+                  placeholder="Location (e.g. Beverly Hills, CA)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postLocation}
+                  onChangeText={setPostLocation}
+                />
+                <TextInput
+                  placeholder="Comprehensive property overview, zoning, cap rates, and amenities..."
+                  placeholderTextColor={textMuted}
+                  multiline
+                  numberOfLines={4}
+                  style={[styles.formTextArea, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postContent}
+                  onChangeText={setPostContent}
+                />
+
+                {attachedImage && (
+                  <View style={styles.attachedPreviewBox}>
+                    <Image source={{ uri: attachedImage }} style={styles.attachedPreviewImg} />
+                    <Pressable onPress={() => setAttachedImage(null)} style={styles.removePreviewBtn}>
+                      <MaterialIcons name="close" size={16} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={styles.formActionsRow}>
+                  <Pressable
+                    onPress={handlePickImage}
+                    style={[
+                      styles.attachMediaBtn,
+                      {
+                        backgroundColor: isDark ? '#162235' : '#F1F5F9',
+                        borderColor: isDark ? '#1a273c' : '#CBD5E1',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="add-photo-alternate" size={18} color={goldPrimary} />
+                    <Text style={[styles.attachMediaBtnText, { color: textPrimary }]}>
+                      {attachedImage ? 'Change Image' : 'Attach Image (Local/Drive)'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleCreatePost}
+                    disabled={isPublishing}
+                    style={[styles.submitFormBtn, { backgroundColor: goldPrimary }]}
+                  >
+                    {isPublishing ? (
+                      <ActivityIndicator size="small" color="#000000" />
+                    ) : (
+                      <Text style={styles.submitFormBtnText}>Publish Listing</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  placeholder="Video Tour Title (e.g. Coventry Office Walkthrough)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor }]}
+                  value={reelTitle}
+                  onChangeText={setReelTitle}
+                />
+                <TextInput
+                  placeholder="Location (e.g. Coventry, United Kingdom)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={reelLocation}
+                  onChangeText={setReelLocation}
+                />
+                <TextInput
+                  placeholder="Or paste Direct Video URL (mp4 / Drive link)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={reelUrl}
+                  onChangeText={setReelUrl}
+                />
+
+                {attachedVideo && (
+                  <View style={styles.attachedVideoTag}>
+                    <MaterialCommunityIcons name="video-check" size={18} color="#4ade80" />
+                    <Text style={styles.attachedVideoTagText}>Video attached from Local/Drive</Text>
+                    <Pressable onPress={() => setAttachedVideo(null)}>
+                      <MaterialIcons name="close" size={16} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={styles.formActionsRow}>
+                  <Pressable
+                    onPress={handlePickVideo}
+                    style={[
+                      styles.attachMediaBtn,
+                      {
+                        backgroundColor: isDark ? '#162235' : '#F1F5F9',
+                        borderColor: isDark ? '#1a273c' : '#CBD5E1',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="video-library" size={18} color="#60a5fa" />
+                    <Text style={[styles.attachMediaBtnText, { color: textPrimary }]}>
+                      {attachedVideo ? 'Change Video' : 'Attach Video (Local/Drive)'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handlePublishReel}
+                    disabled={isPublishingReel}
+                    style={[styles.submitFormBtn, { backgroundColor: goldPrimary }]}
+                  >
+                    {isPublishingReel ? (
+                      <ActivityIndicator size="small" color="#000000" />
+                    ) : (
+                      <Text style={styles.submitFormBtnText}>Publish Reel</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        )}
 
         {/* ════════════════════════════════════════════════════════════════════════
             INSTAGRAM-STYLE PROFILE MEDIA SECTION (POSTS, REELS, SAVED)
