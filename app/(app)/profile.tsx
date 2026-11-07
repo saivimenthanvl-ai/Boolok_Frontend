@@ -29,7 +29,7 @@ import BoolokLogo from '../../components/BoolokLogo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { API_BASE_URL, resolveImageUrl } from '../../lib/api';
 import { formatSmartDateTime } from '../../lib/dateTime';
-import { getReelCoverUrl } from '../../lib/reelMedia';
+import { captureVideoFrame, getReelCoverUrl } from '../../lib/reelMedia';
 import ReelThumbnail from '../../components/ReelThumbnail';
 
 // ── Shared follow tracker ───────────────────────────────────────────────────
@@ -2053,7 +2053,7 @@ export default function ProfessionalUserProfileScreen() {
       }
     } catch (error: any) {
       console.error('Failed to create post:', error);
-      alertMsg('Property listing published to your live network.');
+      alertMsg(error.response?.data?.message || 'Could not publish the listing. Please try again.');
     } finally {
       setIsPublishing(false);
     }
@@ -2070,50 +2070,70 @@ export default function ProfessionalUserProfileScreen() {
       alertMsg('Please attach a video file from Local/Drive or enter a video link.');
       return;
     }
-
-    setIsPublishingReel(true);
-    const newReelObj = {
-      _id: `reel-${Date.now()}`,
-      title: reelTitle.trim(),
-      location: reelLocation.trim() || 'Coventry, United Kingdom',
-      aiMatch: Math.floor(Math.random() * 4) + 96,
-      insight: 'Strong engagement expected based on similar recent listings.',
-      likes: 0,
-      likesCount: 0,
-      comments: [],
-      commentsCount: 0,
-      videoUrl: reelUrl.trim() || attachedVideo || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=1200',
-    };
-
-    setUserReels((prev) => [newReelObj, ...prev]);
-    setData((prev: any) => ({
-      ...prev,
-      reelCount: (prev?.reelCount || 0) + 1,
-      reels: [newReelObj, ...(prev?.reels || [])],
-    }));
-
-    try {
-      const token = await getToken();
-      await axios.post(
-        `${API_BASE_URL}/api/reels`,
-        {
-          title: reelTitle.trim(),
-          location: reelLocation.trim(),
-          videoUrl: reelUrl.trim() || attachedVideo,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (error) {
-      console.log('Reel saved to live state.');
+    if (!attachedVideo && !/^https?:\/\//i.test(reelUrl.trim())) {
+      alertMsg('Please enter a full video link starting with http:// or https://.');
+      return;
     }
 
-    setReelTitle('');
-    setReelLocation('');
-    setReelUrl('');
-    setAttachedVideo(null);
-    setIsPublishingReel(false);
-    alertMsg('Real estate video reel published successfully!');
+    setIsPublishingReel(true);
+    try {
+      const token = await getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      let res;
+      if (attachedVideo) {
+        const formData = new FormData();
+        if (Platform.OS === 'web') {
+          const blob = await (await fetch(attachedVideo)).blob();
+          const mimeType = blob.type || 'video/mp4';
+          const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('quicktime') ? 'mov' : 'mp4';
+          formData.append('video', new File([blob], `reel_${Date.now()}.${ext}`, { type: mimeType }));
+          const frame = await captureVideoFrame(attachedVideo);
+          if (frame) {
+            const frameFile = new File([frame], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            formData.append('thumbnail', frameFile);
+            formData.append('poster', frameFile);
+          }
+        } else {
+          (formData as any).append('video', {
+            uri: attachedVideo,
+            name: `reel_${Date.now()}.mp4`,
+            type: 'video/mp4',
+          });
+        }
+        formData.append('title', reelTitle.trim());
+        formData.append('location', reelLocation.trim());
+        res = await axios.post(`${API_BASE_URL}/api/reels`, formData, {
+          headers,
+          timeout: 0,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        });
+      } else {
+        res = await axios.post(
+          `${API_BASE_URL}/api/reels`,
+          { title: reelTitle.trim(), location: reelLocation.trim(), videoUrl: reelUrl.trim() },
+          { headers }
+        );
+      }
+
+      const savedReel = res.data;
+      setUserReels((prev) => [savedReel, ...prev]);
+      setData((prev: any) => ({
+        ...prev,
+        reelCount: (prev?.reelCount || 0) + 1,
+        reels: [savedReel, ...(prev?.reels || [])],
+      }));
+      setReelTitle('');
+      setReelLocation('');
+      setReelUrl('');
+      setAttachedVideo(null);
+      alertMsg('Real estate video reel published successfully!');
+    } catch (error: any) {
+      console.error('Failed to publish reel:', error);
+      alertMsg(error.response?.data?.message || 'Could not publish the reel. Please try again.');
+    } finally {
+      setIsPublishingReel(false);
+    }
   };
 
   const toggleFollow = async () => {
