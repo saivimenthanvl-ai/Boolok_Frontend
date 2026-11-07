@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  Linking,
 } from 'react-native';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -244,6 +245,8 @@ export default function LegalVerificationScreen() {
     const url = `${API_BASE_URL}/api/legal/download-ec/${encodeURIComponent(filename)}`;
     if (Platform.OS === 'web') {
       window.open(url, '_blank');
+    } else {
+      Linking.openURL(url).catch(() => {});
     }
   };
 

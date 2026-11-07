@@ -804,11 +804,12 @@ export default function BlueprintScreen() {
       setIsAiGenerating(false);
       setIsGenerating(false);
       setAiGenError(err.message || 'Generation failed.');
-      Alert.alert(
-        'Generation Failed',
-        err.message || 'Could not complete floor plan generation with OpenAI.',
-        [{ text: 'OK' }]
-      );
+      setSubmitted(false);
+      if (Platform.OS === 'web') {
+        window.alert(`Generation Failed\n\n${err.message || 'Could not complete floor plan generation with OpenAI.'}`);
+      } else {
+        Alert.alert('Generation Failed', err.message || 'Could not complete floor plan generation with OpenAI.', [{ text: 'OK' }]);
+      }
     }
   }, [openAiKey, outputMode, form]);
 

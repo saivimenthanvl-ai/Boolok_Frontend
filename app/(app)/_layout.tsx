@@ -37,6 +37,26 @@ function AppLayoutContent() {
   const { unreadTotal } = useSocket();
   const pathname = usePathname();
   const params = useGlobalSearchParams();
+
+  const viewingOtherProfile = (pathname === '/profile' || pathname === '/(app)/profile')
+    && Boolean(params.id)
+    && String(params.id) !== 'self'
+    && String(params.id) !== String(user?.id)
+    && String(params.id) !== String(user?._id);
+
+  const isRouteActive = (route: string) => {
+    if (pathname !== route && pathname !== route.replace('/(app)', '')) return false;
+    return !(route === '/(app)/profile' && viewingOtherProfile);
+  };
+
+  const navigateTo = (route: string) => {
+    if (isRouteActive(route)) return;
+    if (route === '/(app)/profile' && viewingOtherProfile) {
+      router.push(route as any);
+      return;
+    }
+    router.dismissTo(route as any);
+  };
   const { theme, isDark, toggleTheme } = useTheme();
 
   // Track keyboard visibility so BottomNav doesn't obstruct inputs or sit above keyboard
@@ -208,12 +228,12 @@ function AppLayoutContent() {
           showsVerticalScrollIndicator={false}
         >
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.route || pathname === item.route.replace('/(app)', '');
+            const isActive = isRouteActive(item.route);
             return (
               <Pressable
                 key={item.id}
                 style={styles.navItem}
-                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
+                onPress={() => navigateTo(item.route)}
               >
                 {({ hovered, pressed }: any) => {
                   const color = isActive || hovered || pressed ? theme.primary : theme.onSurfaceVariant;
@@ -548,13 +568,13 @@ function AppLayoutContent() {
         />
         <View style={styles.bottomNavInner}>
           {activeNavItems.map(item => {
-            const isActive = pathname === item.route || pathname === item.route.replace('/(app)', '');
+            const isActive = isRouteActive(item.route);
 
             return (
               <Pressable
                 key={item.id}
                 style={styles.bottomNavItem}
-                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
+                onPress={() => navigateTo(item.route)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <View style={{ position: 'relative' }}>
@@ -597,10 +617,7 @@ function AppLayoutContent() {
     const borderColor = isDark ? '#1a273c' : '#E2E8F0';
 
     const handleNavigate = (route: string) => {
-      closeMobileDrawer(() => {
-        if (pathname === route || pathname === route.replace('/(app)', '')) return;
-        router.dismissTo(route as any);
-      });
+      closeMobileDrawer(() => navigateTo(route));
     };
 
     return (
@@ -690,7 +707,7 @@ function AppLayoutContent() {
               {/* Category: Main Features */}
               <Text style={[mobileDrawerStyles.sectionHeader, { color: theme.onSurfaceVariant }]}>FEATURES</Text>
               {ALL_FEATURES_NAV.filter(item => item.category === 'Main').map(item => {
-                const isActive = pathname === item.route || pathname === item.route.replace('/(app)', '');
+                const isActive = isRouteActive(item.route);
                 return (
                   <Pressable
                     key={item.id}
@@ -723,7 +740,7 @@ function AppLayoutContent() {
               <View style={{ height: 1, backgroundColor: borderColor, marginVertical: 10, marginHorizontal: 16 }} />
               <Text style={[mobileDrawerStyles.sectionHeader, { color: theme.primary }]}>AI INTELLIGENCE & SUITE</Text>
               {ALL_FEATURES_NAV.filter(item => item.category === 'AI Intelligence').map(item => {
-                const isActive = pathname === item.route || pathname === item.route.replace('/(app)', '');
+                const isActive = isRouteActive(item.route);
                 return (
                   <Pressable
                     key={item.id}
@@ -756,7 +773,7 @@ function AppLayoutContent() {
               <View style={{ height: 1, backgroundColor: borderColor, marginVertical: 10, marginHorizontal: 16 }} />
               <Text style={[mobileDrawerStyles.sectionHeader, { color: theme.onSurfaceVariant }]}>PREFERENCES</Text>
               {ALL_FEATURES_NAV.filter(item => item.category === 'Account').map(item => {
-                const isActive = pathname === item.route || pathname === item.route.replace('/(app)', '');
+                const isActive = isRouteActive(item.route);
                 return (
                   <Pressable
                     key={item.id}
