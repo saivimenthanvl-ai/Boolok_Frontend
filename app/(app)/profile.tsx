@@ -2746,7 +2746,201 @@ export default function ProfessionalUserProfileScreen() {
           </View>
         </View>
 
+        {/* ═══════════════════════════════════════════════════════════════════════
+            CREATE LISTING / REEL MODAL (FOR SELF)
+        ════════════════════════════════════════════════════════════════════════ */}
+        {isSelf && (
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor, marginTop: 16 }]}>
+            <Text style={[styles.sectionHeading, { color: textPrimary }]}>Publish Property Listing or Video Reel</Text>
 
+            {/* Type Selector */}
+            <View style={styles.createTypeRow}>
+              <Pressable
+                onPress={() => setCreateType('post')}
+                style={[
+                  styles.createTypeBtn,
+                  { backgroundColor: createType === 'post' ? goldPrimary : (isDark ? '#162235' : '#E2E8F0') },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="home-plus-outline"
+                  size={18}
+                  color={createType === 'post' ? '#000000' : (isDark ? '#ffffff' : '#0f172a')}
+                />
+                <Text
+                  style={[
+                    styles.createTypeBtnText,
+                    { color: createType === 'post' ? '#000000' : (isDark ? '#ffffff' : '#0f172a') },
+                  ]}
+                >
+                  Property Listing
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setCreateType('reel')}
+                style={[
+                  styles.createTypeBtn,
+                  { backgroundColor: createType === 'reel' ? goldPrimary : (isDark ? '#162235' : '#E2E8F0') },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="video-vintage"
+                  size={18}
+                  color={createType === 'reel' ? '#000000' : (isDark ? '#ffffff' : '#0f172a')}
+                />
+                <Text
+                  style={[
+                    styles.createTypeBtnText,
+                    { color: createType === 'reel' ? '#000000' : (isDark ? '#ffffff' : '#0f172a') },
+                  ]}
+                >
+                  Upload Video Reel / Tour
+                </Text>
+              </Pressable>
+            </View>
+
+            {createType === 'post' ? (
+              <>
+                <TextInput
+                  placeholder="Property Title (e.g. Luxury Modern French Manor Estate)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor }]}
+                  value={postTitle}
+                  onChangeText={setPostTitle}
+                />
+                <TextInput
+                  placeholder="Asking Price (e.g. $8,900,000)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postPrice}
+                  onChangeText={setPostPrice}
+                />
+                <TextInput
+                  placeholder="Location (e.g. Beverly Hills, CA)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postLocation}
+                  onChangeText={setPostLocation}
+                />
+                <TextInput
+                  placeholder="Comprehensive property overview, zoning, cap rates, and amenities..."
+                  placeholderTextColor={textMuted}
+                  multiline
+                  numberOfLines={4}
+                  style={[styles.formTextArea, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={postContent}
+                  onChangeText={setPostContent}
+                />
+
+                {attachedImage && (
+                  <View style={styles.attachedPreviewBox}>
+                    <Image source={{ uri: attachedImage }} style={styles.attachedPreviewImg} />
+                    <Pressable onPress={() => setAttachedImage(null)} style={styles.removePreviewBtn}>
+                      <MaterialIcons name="close" size={16} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={styles.formActionsRow}>
+                  <Pressable
+                    onPress={handlePickImage}
+                    style={[
+                      styles.attachMediaBtn,
+                      {
+                        backgroundColor: isDark ? '#162235' : '#F1F5F9',
+                        borderColor: isDark ? '#1a273c' : '#CBD5E1',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="add-photo-alternate" size={18} color={goldPrimary} />
+                    <Text style={[styles.attachMediaBtnText, { color: textPrimary }]}>
+                      {attachedImage ? 'Change Image' : 'Attach Image (Local/Drive)'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleCreatePost}
+                    disabled={isPublishing}
+                    style={[styles.submitFormBtn, { backgroundColor: goldPrimary }]}
+                  >
+                    {isPublishing ? (
+                      <ActivityIndicator size="small" color="#000000" />
+                    ) : (
+                      <Text style={styles.submitFormBtnText}>Publish Listing</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  placeholder="Video Tour Title (e.g. Coventry Office Walkthrough)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor }]}
+                  value={reelTitle}
+                  onChangeText={setReelTitle}
+                />
+                <TextInput
+                  placeholder="Location (e.g. Coventry, United Kingdom)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={reelLocation}
+                  onChangeText={setReelLocation}
+                />
+                <TextInput
+                  placeholder="Or paste Direct Video URL (mp4 / Drive link)..."
+                  placeholderTextColor={textMuted}
+                  style={[styles.formInput, { backgroundColor: isDark ? '#070e1a' : '#F8FAFC', color: textPrimary, borderColor, marginTop: 8 }]}
+                  value={reelUrl}
+                  onChangeText={setReelUrl}
+                />
+
+                {attachedVideo && (
+                  <View style={styles.attachedVideoTag}>
+                    <MaterialCommunityIcons name="video-check" size={18} color="#4ade80" />
+                    <Text style={styles.attachedVideoTagText}>Video attached from Local/Drive</Text>
+                    <Pressable onPress={() => setAttachedVideo(null)}>
+                      <MaterialIcons name="close" size={16} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={styles.formActionsRow}>
+                  <Pressable
+                    onPress={handlePickVideo}
+                    style={[
+                      styles.attachMediaBtn,
+                      {
+                        backgroundColor: isDark ? '#162235' : '#F1F5F9',
+                        borderColor: isDark ? '#1a273c' : '#CBD5E1',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="video-library" size={18} color="#60a5fa" />
+                    <Text style={[styles.attachMediaBtnText, { color: textPrimary }]}>
+                      {attachedVideo ? 'Change Video' : 'Attach Video (Local/Drive)'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handlePublishReel}
+                    disabled={isPublishingReel}
+                    style={[styles.submitFormBtn, { backgroundColor: goldPrimary }]}
+                  >
+                    {isPublishingReel ? (
+                      <ActivityIndicator size="small" color="#000000" />
+                    ) : (
+                      <Text style={styles.submitFormBtnText}>Publish Reel</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        )}
 
         {/* ════════════════════════════════════════════════════════════════════════
             INSTAGRAM-STYLE PROFILE MEDIA SECTION (POSTS, REELS, SAVED)
