@@ -32,7 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useSocket } from '../../context/SocketContext';
 import { API_BASE_URL, resolveImageUrl } from '../../lib/api';
-import { formatSmartDateTime, formatConversationTime, getMessageDateSeparator, isSameCalendarDay } from '../../lib/dateTime';
+import { formatSmartDateTime, formatConversationTime, formatLastSeen, getMessageDateSeparator, isSameCalendarDay } from '../../lib/dateTime';
 import BoolokLogo from '../../components/BoolokLogo';
 
 const COMMUNITY_MEMBERS_DIRECTORY = [
@@ -55,7 +55,7 @@ export default function MessagesScreen() {
   const params = useLocalSearchParams();
   const { user: currentUser, token } = useAuth();
   const { theme, isDark } = useTheme();
-  const { socket, isConnected, joinConversation, leaveConversation, sendTyping, sendStopTyping, markConversationRead } = useSocket();
+  const { socket, isConnected, onlineUserIds, isUserOnline, joinConversation, leaveConversation, sendTyping, sendStopTyping, markConversationRead } = useSocket();
 
   // Color tokens
   const bgDark = isDark ? '#050a14' : '#F1F5F9';
@@ -278,6 +278,18 @@ export default function MessagesScreen() {
             return prev;
           });
         }
+        if (res.data?.otherUser) {
+          setActiveConversation((prev: any) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              otherUser: {
+                ...prev.otherUser,
+                ...res.data.otherUser,
+              },
+            };
+          });
+        }
       } catch (_) {}
     }, 3000);
 
@@ -327,16 +339,56 @@ export default function MessagesScreen() {
       }
     };
 
+    const handleUserStatusChanged = (payload: any) => {
+      if (!payload?.userId) return;
+      const targetId = String(payload.userId);
+
+      setConversations((prev) =>
+        prev.map((conv) => {
+          const oId = String(conv.otherUser?._id || conv.otherUser?.id || '');
+          if (oId === targetId) {
+            return {
+              ...conv,
+              otherUser: {
+                ...conv.otherUser,
+                isOnline: Boolean(payload.isOnline),
+                lastSeen: payload.lastSeen,
+              },
+            };
+          }
+          return conv;
+        })
+      );
+
+      setActiveConversation((prev: any) => {
+        if (!prev) return prev;
+        const oId = String(prev.otherUser?._id || prev.otherUser?.id || '');
+        if (oId === targetId) {
+          return {
+            ...prev,
+            otherUser: {
+              ...prev.otherUser,
+              isOnline: Boolean(payload.isOnline),
+              lastSeen: payload.lastSeen,
+            },
+          };
+        }
+        return prev;
+      });
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('message_notification', handleMessageNotification);
     socket.on('user_typing', handleUserTyping);
     socket.on('user_stop_typing', handleUserStopTyping);
+    socket.on('user_status_changed', handleUserStatusChanged);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('message_notification', handleMessageNotification);
       socket.off('user_typing', handleUserTyping);
       socket.off('user_stop_typing', handleUserStopTyping);
+      socket.off('user_status_changed', handleUserStatusChanged);
     };
   }, [socket, markConversationRead, fetchConversations]);
 
@@ -624,8 +676,15 @@ export default function MessagesScreen() {
                 renderItem={({ item }) => {
                   const isSelected = activeConversation?._id === item._id;
                   const other = item.otherUser || {};
+                  const otherId = String(other._id || other.id || '');
                   const otherInitial = (other.fullName || other.username || 'U')[0]?.toUpperCase();
                   const photoUrl = resolveImageUrl(other.profilePicture);
+                  const isOnline =
+                    isUserOnline(other._id) ||
+                    isUserOnline(other.id) ||
+                    isUserOnline(other.username) ||
+                    Boolean(other.isOnline);
+                  const statusText = formatLastSeen(isOnline, other.lastSeen);
 
                   return (
                     <Pressable
@@ -646,7 +705,15 @@ export default function MessagesScreen() {
                             <Text style={{ color: isDark ? '#daa520' : '#B45309', fontWeight: '800', fontSize: 15 }}>{otherInitial}</Text>
                           </View>
                         )}
-                        <View style={styles.onlineStatusBadge} />
+                        <View
+                          style={[
+                            styles.onlineStatusBadge,
+                            {
+                              backgroundColor: isOnline ? '#22c55e' : '#64748b',
+                              borderColor: cardBg,
+                            },
+                          ]}
+                        />
                       </View>
 
                       {/* Info & Snippet */}
@@ -659,9 +726,22 @@ export default function MessagesScreen() {
                             {formatConversationTime(item.updatedAt || item.lastMessage?.createdAt)}
                           </Text>
                         </View>
-                        <Text style={[styles.convHeadline, { color: textMuted }]} numberOfLines={1}>
-                          {other.headline || 'Verified Real Estate Specialist'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                          {isOnline ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+                              <Text style={{ fontSize: 11, color: '#22c55e', fontWeight: '700' }}>Active now</Text>
+                            </View>
+                          ) : other.lastSeen ? (
+                            <Text style={{ fontSize: 11, color: textMuted }} numberOfLines={1}>
+                              {statusText}
+                            </Text>
+                          ) : (
+                            <Text style={[styles.convHeadline, { color: textMuted }]} numberOfLines={1}>
+                              {other.headline || 'Verified Real Estate Specialist'}
+                            </Text>
+                          )}
+                        </View>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
                           <Text style={[styles.convSnippet, { color: item.unreadCount > 0 ? textPrimary : textMuted, fontWeight: item.unreadCount > 0 ? '700' : '400' }]} numberOfLines={1}>
                             {item.lastMessage?.text || 'Started a conversation'}
@@ -711,16 +791,36 @@ export default function MessagesScreen() {
                       </Pressable>
                     )}
 
-                    {/* Participant Avatar */}
+                    {/* Participant Avatar with Live Active Indicator */}
                     {(() => {
                       const other = activeConversation.otherUser || {};
+                      const otherId = String(other._id || other.id || '');
                       const photoUrl = resolveImageUrl(other.profilePicture);
                       const initial = (other.fullName || other.username || 'U')[0]?.toUpperCase();
-                      return photoUrl ? (
-                        <Image source={{ uri: photoUrl }} style={styles.chatHeaderAvatar} />
-                      ) : (
-                        <View style={[styles.chatHeaderAvatar, { backgroundColor: isDark ? '#1a273c' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: goldPrimary }]}>
-                          <Text style={{ color: isDark ? '#daa520' : '#B45309', fontWeight: '800', fontSize: 16 }}>{initial}</Text>
+                      const isOnline =
+                        isUserOnline(other._id) ||
+                        isUserOnline(other.id) ||
+                        isUserOnline(other.username) ||
+                        Boolean(other.isOnline);
+
+                      return (
+                        <View style={{ position: 'relative' }}>
+                          {photoUrl ? (
+                            <Image source={{ uri: photoUrl }} style={styles.chatHeaderAvatar} />
+                          ) : (
+                            <View style={[styles.chatHeaderAvatar, { backgroundColor: isDark ? '#1a273c' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: goldPrimary }]}>
+                              <Text style={{ color: isDark ? '#daa520' : '#B45309', fontWeight: '800', fontSize: 16 }}>{initial}</Text>
+                            </View>
+                          )}
+                          <View
+                            style={[
+                              styles.headerOnlineBadge,
+                              {
+                                backgroundColor: isOnline ? '#22c55e' : '#64748b',
+                                borderColor: cardBg,
+                              },
+                            ]}
+                          />
                         </View>
                       );
                     })()}
@@ -732,9 +832,47 @@ export default function MessagesScreen() {
                         </Text>
                         <MaterialIcons name="verified" size={16} color={goldPrimary} />
                       </View>
-                      <Text style={[styles.chatHeaderSubtitle, { color: textMuted }]} numberOfLines={1}>
-                        @{activeConversation.otherUser?.username || 'member'} · {activeConversation.otherUser?.location || 'Boolok Real Estate Network'}
-                      </Text>
+
+                      {/* Active Status & Last Seen Subtitle */}
+                      {(() => {
+                        const other = activeConversation.otherUser || {};
+                        const otherId = String(other._id || other.id || '');
+                        const isOnline =
+                          isUserOnline(other._id) ||
+                          isUserOnline(other.id) ||
+                          isUserOnline(other.username) ||
+                          Boolean(other.isOnline);
+
+                        if (isTyping) {
+                          return (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ color: goldPrimary, fontSize: 12, fontWeight: '700' }}>
+                                typing...
+                              </Text>
+                            </View>
+                          );
+                        }
+
+                        if (isOnline) {
+                          return (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#22c55e' }} />
+                              <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>
+                                Active now
+                              </Text>
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <MaterialIcons name="access-time" size={12} color={textMuted} />
+                            <Text style={[styles.chatHeaderSubtitle, { color: textMuted }]} numberOfLines={1}>
+                              {formatLastSeen(false, other.lastSeen)}
+                            </Text>
+                          </View>
+                        );
+                      })()}
                     </View>
                   </View>
 
@@ -1053,9 +1191,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: '#0c1626',
+  },
+  headerOnlineBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#22c55e',
     borderWidth: 2,
     borderColor: '#0c1626',

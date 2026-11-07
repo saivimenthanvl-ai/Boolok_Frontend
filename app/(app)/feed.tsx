@@ -301,6 +301,10 @@ const DEFAULT_COMMUNITY_ADVISORS = [
 // ── Feed Posts (loaded live from the backend API) ───────────────────────────
 const DEFAULT_FEED_POSTS: any[] = [];
 
+// Last successful feed response, kept across screen remounts so returning to the
+// feed renders immediately while fresh data loads in the background.
+let feedCache: { posts: any[]; news?: any[]; suggested?: any[] } | null = null;
+
 const REACTION_TYPES = [
   { key: 'like', label: 'Like', icon: 'thumb-up', color: '#3b82f6', bg: '#0a66c2' },
   { key: 'celebrate', label: 'Celebrate', icon: 'sign-language', color: '#10b981', bg: '#059669' },
@@ -318,12 +322,12 @@ export default function ProfessionalSocialFeedScreen() {
 
   const styles = useMemo(() => getStyles(isDark, width), [isDark, width]);
 
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<any[]>(() => feedCache?.posts || []);
+  const [loading, setLoading] = useState(() => !feedCache);
   const [refreshing, setRefreshing] = useState(false);
-  const [newsList, setNewsList] = useState(DEFAULT_REAL_ESTATE_NEWS);
+  const [newsList, setNewsList] = useState(() => feedCache?.news || DEFAULT_REAL_ESTATE_NEWS);
   const [showAllNews, setShowAllNews] = useState(false);
-  const [suggestedUsers, setSuggestedUsers] = useState<any[]>(DEFAULT_COMMUNITY_ADVISORS);
+  const [suggestedUsers, setSuggestedUsers] = useState<any[]>(() => feedCache?.suggested || DEFAULT_COMMUNITY_ADVISORS);
   const [followingMap, setFollowingMap] = useState<Record<string, boolean>>(() => {
     // Pre-populate from the shared localStorage cache so the feed's + Follow
     // button reflects the same state as Insights and Profile screens.
@@ -599,12 +603,14 @@ export default function ProfessionalSocialFeedScreen() {
         const postsList = Array.isArray(raw) ? raw : (Array.isArray(raw?.posts) ? raw.posts : []);
         // Apply cached like counts so counts survive page reload
         setPosts(_applyLikeCache(postsList));
-      } else {
+        feedCache = { ...feedCache, posts: postsList };
+      } else if (!feedCache) {
         setPosts([]);
       }
 
       if (newsRes.status === 'fulfilled' && Array.isArray(newsRes.value.data?.news)) {
         setNewsList(newsRes.value.data.news);
+        if (feedCache) feedCache.news = newsRes.value.data.news;
       }
 
       // Sync following truth directly from MongoDB database
@@ -627,6 +633,7 @@ export default function ProfessionalSocialFeedScreen() {
       if (suggestedRes.status === 'fulfilled' && Array.isArray(suggestedRes.value.data?.suggested)) {
         const list = suggestedRes.value.data.suggested;
         setSuggestedUsers(list);
+        if (feedCache) feedCache.suggested = list;
         list.forEach((u: any) => {
           if (u.isFollowing) {
             if (u.id) dbFollowMap[u.id] = true;

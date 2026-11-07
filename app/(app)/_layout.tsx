@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { id: 'search', icon: 'search', label: 'AI Search', route: '/(app)/search' },
   { id: 'insights', icon: 'dynamic-feed', label: 'Insights Feed', route: '/(app)/insights' },
   { id: 'predictions', icon: 'trending-up', label: 'Price Predictions', route: '/(app)/predictions' },
-  { id: 'legal', icon: 'gavel', label: 'Legal AI', route: '/(app)/legal' },
+  { id: 'legal', icon: 'verified-user', label: 'Title & Legal AI', route: '/(app)/legal' },
   { id: 'blueprint', icon: 'home-work', label: 'House Plan', route: '/(app)/blueprint' },
 ];
 
@@ -213,7 +213,7 @@ function AppLayoutContent() {
               <Pressable
                 key={item.id}
                 style={styles.navItem}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
               >
                 {({ hovered, pressed }: any) => {
                   const color = isActive || hovered || pressed ? theme.primary : theme.onSurfaceVariant;
@@ -554,7 +554,7 @@ function AppLayoutContent() {
               <Pressable
                 key={item.id}
                 style={styles.bottomNavItem}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <View style={{ position: 'relative' }}>
@@ -583,7 +583,7 @@ function AppLayoutContent() {
     { id: 'search', icon: 'search', label: 'AI Search', route: '/(app)/search', category: 'Main' },
     { id: 'insights', icon: 'dynamic-feed', label: 'Video Reels & Insights', route: '/(app)/insights', category: 'Main' },
     { id: 'predictions', icon: 'trending-up', label: 'Price Predictions', route: '/(app)/predictions', category: 'AI Intelligence', tag: 'AI' },
-    { id: 'legal', icon: 'gavel', label: 'Legal AI Advisor', route: '/(app)/legal', category: 'AI Intelligence', tag: 'AI' },
+    { id: 'legal', icon: 'verified-user', label: 'Title & Legal Verification', route: '/(app)/legal', category: 'AI Intelligence', tag: 'AI' },
     { id: 'blueprint', icon: 'home-work', label: 'House Plan & Blueprint', route: '/(app)/blueprint', category: 'AI Intelligence', tag: 'PRO' },
     { id: 'profile', icon: 'person', label: 'My Portfolio', route: '/(app)/profile', category: 'Account' },
     { id: 'settings', icon: 'settings', label: 'Settings', route: '/(app)/settings', category: 'Account' },
@@ -598,7 +598,8 @@ function AppLayoutContent() {
 
     const handleNavigate = (route: string) => {
       closeMobileDrawer(() => {
-        router.push(route as any);
+        if (pathname === route || pathname === route.replace('/(app)', '')) return;
+        router.dismissTo(route as any);
       });
     };
 
@@ -863,7 +864,7 @@ function AppLayoutContent() {
               >
                 <MaterialIcons name="menu" size={24} color={theme.onSurface} />
               </Pressable>
-              <Pressable onPress={() => router.push('/(app)/dashboard')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+              <Pressable onPress={() => router.dismissTo('/(app)/dashboard')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
                 <BoolokLogo size={24} color={theme.primary} />
                 <Text style={{ fontSize: 15, fontWeight: '900', color: theme.primary, letterSpacing: 1, marginLeft: 5 }}>
                   BOOLOK
@@ -1070,7 +1071,7 @@ function AppLayoutContent() {
 
             {/* Direct Messages Icon Button */}
             <View style={{ position: 'relative' }}>
-              <Pressable onPress={() => router.push('/(app)/messages')} style={styles.iconBtn}>
+              <Pressable onPress={() => router.dismissTo('/(app)/messages')} style={styles.iconBtn}>
                 <MaterialIcons name="chat" size={22} color={pathname?.includes('messages') ? theme.primary : theme.onSurfaceVariant} />
                 {unreadTotal > 0 && (
                   <View style={[styles.notificationDot, { backgroundColor: '#daa520', borderColor: theme.surface, width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }]}>
@@ -1212,7 +1213,7 @@ function AppLayoutContent() {
 
               {isWide && (
                 <Pressable
-                  onPress={() => router.push('/(app)/settings')}
+                  onPress={() => router.dismissTo('/(app)/settings')}
                   style={({ pressed, hovered }: any) => [
                     { marginLeft: spacing.sm, padding: 4, borderRadius: 20, flexShrink: 0 },
                     (pressed || hovered) && { backgroundColor: theme.surfaceContainer }

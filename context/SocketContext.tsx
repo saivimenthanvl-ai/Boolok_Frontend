@@ -8,6 +8,8 @@ type SocketContextType = {
   socket: Socket | null;
   isConnected: boolean;
   unreadTotal: number;
+  onlineUserIds: Set<string>;
+  isUserOnline: (userId: string) => boolean;
   refreshUnreadTotal: () => Promise<void>;
   joinConversation: (conversationId: string) => void;
   leaveConversation: (conversationId: string) => void;
@@ -23,6 +25,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
+  const isUserOnline = useCallback(
+    (key?: string | null) => {
+      if (!key) return false;
+      const str = String(key).toLowerCase();
+      return onlineUserIds.has(str) || onlineUserIds.has(String(key));
+    },
+    [onlineUserIds]
+  );
 
   const refreshUnreadTotal = useCallback(async () => {
     if (!token) return;
@@ -91,9 +103,44 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       refreshUnreadTotal();
     });
 
+    socketInstance.on('initial_online_users', (keys: string[]) => {
+      if (Array.isArray(keys)) {
+        const set = new Set<string>();
+        keys.forEach((k) => {
+          if (k) {
+            set.add(String(k).toLowerCase());
+            set.add(String(k));
+          }
+        });
+        setOnlineUserIds(set);
+      }
+    });
+
+    socketInstance.on('user_status_changed', (payload: any) => {
+      if (!payload) return;
+      const ids: string[] = [];
+      if (payload.userId) {
+        ids.push(String(payload.userId).toLowerCase(), String(payload.userId));
+      }
+      if (payload.username) {
+        ids.push(String(payload.username).toLowerCase());
+      }
+
+      setOnlineUserIds((prev) => {
+        const next = new Set(prev);
+        if (payload.isOnline) {
+          ids.forEach((id) => next.add(id));
+        } else {
+          ids.forEach((id) => next.delete(id));
+        }
+        return next;
+      });
+    });
+
     return () => {
       socketInstance.disconnect();
       socketRef.current = null;
+      setOnlineUserIds(new Set());
     };
   }, [isAuthenticated, token, refreshUnreadTotal]);
 
@@ -144,6 +191,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         socket: socketRef.current,
         isConnected,
         unreadTotal,
+        onlineUserIds,
+        isUserOnline,
         refreshUnreadTotal,
         joinConversation,
         leaveConversation,
@@ -164,6 +213,8 @@ export function useSocket() {
       socket: null,
       isConnected: false,
       unreadTotal: 0,
+      onlineUserIds: new Set<string>(),
+      isUserOnline: () => false,
       refreshUnreadTotal: async () => {},
       joinConversation: () => {},
       leaveConversation: () => {},

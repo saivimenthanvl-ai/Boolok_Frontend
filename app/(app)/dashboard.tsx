@@ -274,24 +274,24 @@ export default function FeedScreen() {
               <Text
                 style={[typography.headlineSm, { color: theme.onSurface }]}
               >
-                Legal AI
+                Title & Legal AI
               </Text>
-              <MaterialIcons name="gavel" size={24} color={theme.error} />
+              <MaterialIcons name="verified-user" size={24} color={theme.primary} />
             </View>
 
             <View
               style={[
                 styles.alertBox,
                 {
-                  backgroundColor: 'rgba(186, 26, 26, 0.1)',
-                  borderColor: 'rgba(186, 26, 26, 0.2)',
+                  backgroundColor: 'rgba(218, 165, 32, 0.1)',
+                  borderColor: 'rgba(218, 165, 32, 0.25)',
                 },
               ]}
             >
               <MaterialIcons
-                name="warning"
+                name="shield"
                 size={24}
-                color={theme.error}
+                color={theme.primary}
                 style={{ marginRight: spacing.sm, marginTop: 2 }}
               />
               <View style={{ flex: 1 }}>
@@ -303,12 +303,12 @@ export default function FeedScreen() {
                     marginBottom: 2,
                   }}
                 >
-                  Compliance Alert
+                  Deed & EC Verification
                 </Text>
                 <Text
                   style={{ fontSize: 13, color: theme.onSurfaceVariant }}
                 >
-                  {stats?.complianceAlert || 'No active alerts'}
+                  Autonomous TNREGINET audit, bilingual OCR & lien detection
                 </Text>
               </View>
             </View>
@@ -326,18 +326,18 @@ export default function FeedScreen() {
                   color: theme.onSurface,
                 }}
               >
-                Active Reviews
+                Registry Status
               </Text>
               <View
                 style={[
                   styles.pendingBadge,
-                  { backgroundColor: theme.primary },
+                  { backgroundColor: '#10B981' },
                 ]}
               >
                 <Text
                   style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}
                 >
-                  2 PENDING
+                  ONLINE
                 </Text>
               </View>
             </View>
@@ -350,7 +350,7 @@ export default function FeedScreen() {
                 marginTop: 'auto',
               }}
             >
-              View All Audits
+              Verify Title Deed →
             </Text>
           </Pressable>
 

@@ -147,3 +147,73 @@ export function isSameCalendarDay(
     date1.getFullYear() === date2.getFullYear()
   );
 }
+
+/**
+ * Format active status / last seen text for chat header and conversation previews.
+ * Examples:
+ * - When online: "Active now"
+ * - < 1 min ago: "Active just now"
+ * - < 60 min ago: "Active 5m ago"
+ * - < 24 hours ago (today): "Active today at 2:45 PM"
+ * - Yesterday: "Active yesterday at 11:20 AM"
+ * - Older: "Active on Oct 28 at 4:10 PM"
+ * - No date: "Offline"
+ */
+export function formatLastSeen(
+  isOnline: boolean,
+  lastSeen?: string | Date | number | null
+): string {
+  if (isOnline) {
+    return 'Active now';
+  }
+  if (!lastSeen) {
+    return 'Offline';
+  }
+  const d = new Date(lastSeen);
+  if (isNaN(d.getTime())) {
+    return 'Offline';
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+
+  if (diffSec < 60) {
+    return 'Active just now';
+  }
+  if (diffMin < 60) {
+    return `Active ${diffMin}m ago`;
+  }
+
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isToday) {
+    return `Active today at ${timeStr}`;
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) {
+    return `Active yesterday at ${timeStr}`;
+  }
+
+  const isSameYear = d.getFullYear() === now.getFullYear();
+  const dateStr = d.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    ...(isSameYear ? {} : { year: 'numeric' }),
+  });
+
+  return `Active on ${dateStr} at ${timeStr}`;
+}
