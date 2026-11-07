@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { id: 'search', icon: 'search', label: 'AI Search', route: '/(app)/search' },
   { id: 'insights', icon: 'dynamic-feed', label: 'Insights Feed', route: '/(app)/insights' },
   { id: 'predictions', icon: 'trending-up', label: 'Price Predictions', route: '/(app)/predictions' },
-  { id: 'legal', icon: 'gavel', label: 'Legal AI', route: '/(app)/legal' },
+  { id: 'legal', icon: 'verified-user', label: 'Title & Legal AI', route: '/(app)/legal' },
   { id: 'blueprint', icon: 'home-work', label: 'House Plan', route: '/(app)/blueprint' },
 ];
 
@@ -583,7 +583,7 @@ function AppLayoutContent() {
     { id: 'search', icon: 'search', label: 'AI Search', route: '/(app)/search', category: 'Main' },
     { id: 'insights', icon: 'dynamic-feed', label: 'Video Reels & Insights', route: '/(app)/insights', category: 'Main' },
     { id: 'predictions', icon: 'trending-up', label: 'Price Predictions', route: '/(app)/predictions', category: 'AI Intelligence', tag: 'AI' },
-    { id: 'legal', icon: 'gavel', label: 'Legal AI Advisor', route: '/(app)/legal', category: 'AI Intelligence', tag: 'AI' },
+    { id: 'legal', icon: 'verified-user', label: 'Title & Legal Verification', route: '/(app)/legal', category: 'AI Intelligence', tag: 'AI' },
     { id: 'blueprint', icon: 'home-work', label: 'House Plan & Blueprint', route: '/(app)/blueprint', category: 'AI Intelligence', tag: 'PRO' },
     { id: 'profile', icon: 'person', label: 'My Portfolio', route: '/(app)/profile', category: 'Account' },
     { id: 'settings', icon: 'settings', label: 'Settings', route: '/(app)/settings', category: 'Account' },

@@ -1045,6 +1045,12 @@ const VideoItem = ({
           borderWidth: isMobile ? 0 : 1,
           borderColor: '#1e293b',
         },
+        Platform.OS === 'web'
+          ? ({
+              scrollSnapAlign: 'start',
+              scrollSnapStop: 'always',
+            } as any)
+          : null,
       ]}
     >
       {/* ── Video Background / Tap Layer ── */}
@@ -1685,7 +1691,6 @@ const VideoItem = ({
 function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any) {
   const [video, setVideo] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [coverAsset, setCoverAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [selectedPresetUrl, setSelectedPresetUrl] = useState<string>(PROPERTY_COVER_PRESETS[0].url);
   const [authorName, setAuthorName] = useState<string>(user?.fullName || '');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -1699,23 +1704,16 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
     if (uploading) {
       interval = setInterval(() => {
         setUploadProgress((prev) => {
-          if (prev < 40) {
-            setUploadStageText('Uploading high-definition property video...');
-            return prev + 6;
-          }
-          if (prev < 75) {
-            setUploadStageText('Optimizing bitrate & cover streams...');
-            return prev + 4;
-          }
-          if (prev < 92) {
-            setUploadStageText('Generating AI Property Intelligence match...');
-            return prev + 2;
+          if (prev >= 90 && prev < 97) {
+            setUploadStageText('Processing on server & optimizing streams…');
+            return prev + 1;
           }
           return prev;
         });
-      }, 300);
+      }, 700);
     } else {
       setUploadProgress(0);
+      setUploadStageText('Preparing video & property media...');
     }
     return () => clearInterval(interval);
   }, [uploading]);
@@ -1729,7 +1727,6 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
   const reset = () => {
     setVideo(null);
     setCoverAsset(null);
-    setSelectedPresetUrl(PROPERTY_COVER_PRESETS[0].url);
     setTitle('');
     setLocation('');
     setCaption('');
@@ -1769,7 +1766,7 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
     }
   };
 
-  const currentCoverUri = coverAsset ? coverAsset.uri : selectedPresetUrl;
+  const currentCoverUri = coverAsset ? coverAsset.uri : null;
 
   const handleUpload = async () => {
     if (!video) {
@@ -1782,7 +1779,7 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
     }
 
     setUploading(true);
-    setUploadProgress(15);
+    setUploadProgress(5);
     setUploadStageText('Preparing video & property media...');
     try {
       const token = Platform.OS === 'web'
@@ -1837,9 +1834,6 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
             type: coverAsset.mimeType || 'image/jpeg',
           });
         }
-      } else if (selectedPresetUrl) {
-        formData.append('thumbnail', selectedPresetUrl);
-        formData.append('poster', selectedPresetUrl);
       }
 
       const effectiveAuthor = authorName.trim() || user?.fullName || 'Boolok Creator';
@@ -1859,8 +1853,15 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
         onUploadProgress: (evt: any) => {
           if (evt?.total) {
             const pct = Math.round((evt.loaded / evt.total) * 100);
-            setUploadProgress(Math.min(95, 15 + Math.round(pct * 0.8)));
-            setUploadStageText(pct < 100 ? `Uploading video… ${pct}%` : 'Processing on server…');
+            // Real network progress maps monotonically from 10% to 90%
+            const current = Math.min(90, 10 + Math.round(pct * 0.8));
+            setUploadProgress((prev) => Math.max(prev, current));
+            if (pct < 100) {
+              setUploadStageText(`Uploading video… ${pct}%`);
+            } else {
+              setUploadProgress((prev) => Math.max(prev, 90));
+              setUploadStageText('Processing on server & optimizing streams…');
+            }
           }
         },
       });
@@ -1967,7 +1968,7 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
             <View style={{ marginTop: 14 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <Text style={[uploadStyles.label, { color: theme.onSurfaceVariant, marginBottom: 0 }]}>
-                  Reel Cover Picture *
+                  Reel Cover Picture (Optional)
                 </Text>
                 <TouchableOpacity onPress={pickCoverImage} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <MaterialIcons name="photo-library" size={14} color={theme.primary} />
@@ -1977,72 +1978,83 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
                 </TouchableOpacity>
               </View>
 
-              {/* Cover Preview Card */}
-              <View style={[uploadStyles.coverPreviewCard, { borderColor: theme.outlineVariant }]}>
-                <Image
-                  source={{ uri: currentCoverUri }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.8)']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={uploadStyles.coverPreviewBadge}>
-                  <MaterialIcons name="person" size={12} color="#000" />
-                  <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>
-                    {authorName.trim() || user?.fullName || 'CREATOR'}
-                  </Text>
-                </View>
+              {/* Cover Preview Card or Empty Optional Placeholder */}
+              {currentCoverUri ? (
+                <View style={[uploadStyles.coverPreviewCard, { borderColor: theme.outlineVariant }]}>
+                  <Image
+                    source={{ uri: currentCoverUri }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.8)']}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={uploadStyles.coverPreviewBadge}>
+                    <MaterialIcons name="person" size={12} color="#000" />
+                    <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>
+                      {authorName.trim() || user?.fullName || 'CREATOR'}
+                    </Text>
+                  </View>
 
-                <View style={uploadStyles.coverPreviewBottom}>
-                  <Text style={uploadStyles.coverPreviewTitle} numberOfLines={1}>
-                    {title.trim() || 'Property Reel Preview'}
-                  </Text>
-                  <Text style={uploadStyles.coverPreviewSubtitle} numberOfLines={1}>
-                    {location.trim() || 'Location'} · {authorName.trim() || user?.fullName || 'Boolok Member'}
-                  </Text>
-                </View>
-              </View>
+                  {/* Remove Selected Cover Button */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCoverAsset(null);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      borderRadius: 14,
+                      padding: 4,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 2,
+                      paddingHorizontal: 8,
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.25)',
+                    }}
+                  >
+                    <MaterialIcons name="close" size={14} color="#ffffff" />
+                    <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '700' }}>Remove</Text>
+                  </TouchableOpacity>
 
-              {/* Architectural Presets */}
-              <Text style={{ color: theme.onSurfaceVariant, fontSize: 11, marginTop: 8, marginBottom: 6 }}>
-                Or tap a distinct architectural cover:
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {PROPERTY_COVER_PRESETS.map((preset) => {
-                  const isSelected = !coverAsset && selectedPresetUrl === preset.url;
-                  return (
-                    <TouchableOpacity
-                      key={preset.id}
-                      onPress={() => {
-                        setCoverAsset(null);
-                        setSelectedPresetUrl(preset.url);
-                      }}
-                      activeOpacity={0.8}
-                      style={[
-                        uploadStyles.presetChip,
-                        {
-                          borderColor: isSelected ? theme.primary : theme.outlineVariant,
-                          backgroundColor: isSelected ? 'rgba(249, 192, 61, 0.15)' : 'transparent',
-                        },
-                      ]}
-                    >
-                      <Image source={{ uri: preset.url }} style={uploadStyles.presetMiniImg} />
-                      <Text
-                        style={{
-                          color: isSelected ? theme.primary : theme.onSurface,
-                          fontSize: 11.5,
-                          fontWeight: isSelected ? '700' : '500',
-                          marginLeft: 6,
-                        }}
-                      >
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                  <View style={uploadStyles.coverPreviewBottom}>
+                    <Text style={uploadStyles.coverPreviewTitle} numberOfLines={1}>
+                      {title.trim() || 'Property Reel Preview'}
+                    </Text>
+                    <Text style={uploadStyles.coverPreviewSubtitle} numberOfLines={1}>
+                      {location.trim() || 'Location'} · {authorName.trim() || user?.fullName || 'Boolok Member'}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={pickCoverImage}
+                  activeOpacity={0.8}
+                  style={{
+                    height: 90,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderStyle: 'dashed',
+                    borderColor: theme.outlineVariant,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <MaterialIcons name="add-photo-alternate" size={24} color={theme.primary} />
+                  <Text style={{ color: theme.onSurface, fontSize: 12, fontWeight: '600', marginTop: 3 }}>
+                    Upload Custom Cover Image (Optional)
+                  </Text>
+                  <Text style={{ color: theme.onSurfaceVariant, fontSize: 10.5, marginTop: 1 }}>
+                    If none chosen, video's first frame will be used
+                  </Text>
+                </TouchableOpacity>
+              )}
+
             </View>
 
             {/* Creator / Broker Name Input */}
@@ -2223,12 +2235,15 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
                 }}
               >
                 <View
-                  style={{
-                    height: '100%',
-                    width: `${uploadProgress}%`,
-                    backgroundColor: theme.primary,
-                    borderRadius: 3,
-                  }}
+                  style={[
+                    {
+                      height: '100%',
+                      width: `${uploadProgress}%`,
+                      backgroundColor: theme.primary,
+                      borderRadius: 3,
+                    },
+                    Platform.OS === 'web' ? ({ transition: 'width 0.3s ease-out' } as any) : null,
+                  ]}
                 />
               </View>
 
@@ -2630,7 +2645,10 @@ export default function InsightsScreen() {
           <FlatList
             ref={flatListRef}
             data={videos}
-            style={{ flex: 1, width: '100%' }}
+            style={[
+              { flex: 1, width: '100%' },
+              Platform.OS === 'web' ? ({ scrollSnapType: 'y mandatory' } as any) : null,
+            ]}
             contentContainerStyle={{ flexGrow: 1 }}
             renderItem={({ item, index }) => (
               <VideoItem
@@ -2652,7 +2670,7 @@ export default function InsightsScreen() {
               });
             }}
             ListEmptyComponent={renderEmptyReels}
-            pagingEnabled={Platform.OS === 'ios'}
+            pagingEnabled={true}
             snapToInterval={cardHeight}
             snapToAlignment="start"
             decelerationRate="fast"
