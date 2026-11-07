@@ -213,7 +213,7 @@ function AppLayoutContent() {
               <Pressable
                 key={item.id}
                 style={styles.navItem}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
               >
                 {({ hovered, pressed }: any) => {
                   const color = isActive || hovered || pressed ? theme.primary : theme.onSurfaceVariant;
@@ -554,7 +554,7 @@ function AppLayoutContent() {
               <Pressable
                 key={item.id}
                 style={styles.bottomNavItem}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => { if (!isActive) router.dismissTo(item.route as any); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <View style={{ position: 'relative' }}>
@@ -598,7 +598,8 @@ function AppLayoutContent() {
 
     const handleNavigate = (route: string) => {
       closeMobileDrawer(() => {
-        router.push(route as any);
+        if (pathname === route || pathname === route.replace('/(app)', '')) return;
+        router.dismissTo(route as any);
       });
     };
 
@@ -863,7 +864,7 @@ function AppLayoutContent() {
               >
                 <MaterialIcons name="menu" size={24} color={theme.onSurface} />
               </Pressable>
-              <Pressable onPress={() => router.push('/(app)/dashboard')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+              <Pressable onPress={() => router.dismissTo('/(app)/dashboard')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
                 <BoolokLogo size={24} color={theme.primary} />
                 <Text style={{ fontSize: 15, fontWeight: '900', color: theme.primary, letterSpacing: 1, marginLeft: 5 }}>
                   BOOLOK
@@ -1070,7 +1071,7 @@ function AppLayoutContent() {
 
             {/* Direct Messages Icon Button */}
             <View style={{ position: 'relative' }}>
-              <Pressable onPress={() => router.push('/(app)/messages')} style={styles.iconBtn}>
+              <Pressable onPress={() => router.dismissTo('/(app)/messages')} style={styles.iconBtn}>
                 <MaterialIcons name="chat" size={22} color={pathname?.includes('messages') ? theme.primary : theme.onSurfaceVariant} />
                 {unreadTotal > 0 && (
                   <View style={[styles.notificationDot, { backgroundColor: '#daa520', borderColor: theme.surface, width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }]}>
@@ -1212,7 +1213,7 @@ function AppLayoutContent() {
 
               {isWide && (
                 <Pressable
-                  onPress={() => router.push('/(app)/settings')}
+                  onPress={() => router.dismissTo('/(app)/settings')}
                   style={({ pressed, hovered }: any) => [
                     { marginLeft: spacing.sm, padding: 4, borderRadius: 20, flexShrink: 0 },
                     (pressed || hovered) && { backgroundColor: theme.surfaceContainer }

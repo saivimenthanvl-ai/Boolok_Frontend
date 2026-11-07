@@ -33,6 +33,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { API_BASE_URL, resolveImageUrl } from '../../lib/api';
 import { formatSmartDateTime } from '../../lib/dateTime';
+import { captureVideoFrame, getReelCoverUrl } from '../../lib/reelMedia';
 
 // No hardcoded seeded videos: reels are loaded live from the user and backend
 const DUMMY_VIDEOS: any[] = [];
@@ -293,6 +294,7 @@ const VideoItem = ({
 
   const [videoSrc, setVideoSrc] = useState<string>(() => resolveVideoUrl(item));
   const [coverHasError, setCoverHasError] = useState(false);
+  const realCover = coverHasError ? null : getReelCoverUrl(item);
   const retryCountRef = useRef(0);
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -1059,21 +1061,23 @@ const VideoItem = ({
         onPress={handleVideoPress}
         style={StyleSheet.absoluteFill}
       >
-        {/* Background Cover Image fallback so screen is NEVER black */}
-        <Image
-          source={{
-            uri: coverHasError ? PROPERTY_COVER_PRESETS[0].url : resolveCoverUrl(item),
-          }}
-          onError={() => setCoverHasError(true)}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
+        {/* Background cover: the reel's own cover, never an unrelated stock photo on web */}
+        {Platform.OS !== 'web' || realCover ? (
+          <Image
+            source={{
+              uri: realCover || (coverHasError ? PROPERTY_COVER_PRESETS[0].url : resolveCoverUrl(item)),
+            }}
+            onError={() => setCoverHasError(true)}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : null}
 
         {Platform.OS === 'web' ? (
           <video
             ref={webVideoRef}
             src={videoSrc || undefined}
-            poster={coverHasError ? PROPERTY_COVER_PRESETS[0].url : resolveCoverUrl(item)}
+            poster={realCover || undefined}
             loop
             muted
             playsInline
@@ -1812,6 +1816,16 @@ function UploadModal({ visible, onClose, onUploaded, theme, isDark, user }: any)
           name: cleanName,
           type: video.mimeType || 'video/mp4',
         });
+      }
+
+      if (!coverAsset && Platform.OS === 'web') {
+        setUploadStageText('Generating cover from your video...');
+        const frame = await captureVideoFrame(video.uri);
+        if (frame) {
+          const frameFile = new File([frame], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          formData.append('thumbnail', frameFile);
+          formData.append('poster', frameFile);
+        }
       }
 
       if (coverAsset) {

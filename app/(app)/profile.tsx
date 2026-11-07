@@ -28,6 +28,8 @@ import BoolokLogo from '../../components/BoolokLogo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { API_BASE_URL, resolveImageUrl } from '../../lib/api';
 import { formatSmartDateTime } from '../../lib/dateTime';
+import { getReelCoverUrl } from '../../lib/reelMedia';
+import ReelThumbnail from '../../components/ReelThumbnail';
 
 // ── Shared follow tracker ───────────────────────────────────────────────────
 const GLOBAL_FOLLOWED_USERS = new Set<string>();
@@ -630,7 +632,7 @@ const ProfileReelItem = ({ reel }: { reel: any }) => {
           <video
             ref={videoRef}
             src={videoSource}
-            poster={reel.thumbnail || reel.poster}
+            poster={getReelCoverUrl(reel) || undefined}
             loop
             preload="metadata"
             playsInline
@@ -649,9 +651,9 @@ const ProfileReelItem = ({ reel }: { reel: any }) => {
           />
         ) : (
           <>
-            {Boolean((reel.thumbnail || reel.poster) && !isPlaying) ? (
+            {Boolean(getReelCoverUrl(reel) && !isPlaying) ? (
               <Image
-                source={{ uri: reel.thumbnail || reel.poster }}
+                source={{ uri: getReelCoverUrl(reel) as string }}
                 style={StyleSheet.absoluteFill}
                 resizeMode="cover"
               />
@@ -2283,7 +2285,7 @@ export default function ProfessionalUserProfileScreen() {
       <View style={styles.container}>
         {/* Top header navigation bar & Sign Out */}
         <View style={styles.topNavRow}>
-          <Pressable onPress={() => router.push('/(app)/feed')} style={styles.backBtn}>
+          <Pressable onPress={() => router.dismissTo('/(app)/feed')} style={styles.backBtn}>
             <MaterialIcons name="arrow-back" size={20} color={isDark ? '#ffffff' : '#0f172a'} />
             <Text style={[styles.backText, { color: isDark ? '#ffffff' : '#0f172a' }]}>Back to Real Estate Feed</Text>
           </Pressable>
@@ -2962,13 +2964,7 @@ export default function ProfessionalUserProfileScreen() {
                     >
                       {({ hovered }: any) => (
                         <>
-                          <Image
-                            source={{
-                              uri: reel.thumbnail || reel.poster || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600',
-                            }}
-                            style={StyleSheet.absoluteFill}
-                            resizeMode="cover"
-                          />
+                          <ReelThumbnail reel={reel} />
 
                           {/* Subtle Bottom Gradient */}
                           <LinearGradient
@@ -3198,13 +3194,7 @@ export default function ProfessionalUserProfileScreen() {
                         >
                           {({ hovered }: any) => (
                             <>
-                              <Image
-                                source={{
-                                  uri: reel.thumbnail || reel.poster || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600',
-                                }}
-                                style={StyleSheet.absoluteFill}
-                                resizeMode="cover"
-                              />
+                              <ReelThumbnail reel={reel} />
                               <LinearGradient
                                 colors={['transparent', 'rgba(0,0,0,0.75)']}
                                 style={styles.instagramBottomGradient}
