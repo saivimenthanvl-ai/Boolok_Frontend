@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
@@ -212,6 +212,7 @@ function useNativeGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
       const result = await GoogleSignin.signIn();
+      if (result?.type === 'cancelled') return;
       const idToken = result?.data?.idToken ?? result?.idToken;
 
       if (!idToken) {
@@ -220,16 +221,17 @@ function useNativeGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
 
       await onSuccess(idToken);
     } catch (error: any) {
-      if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
+      const code = String(error?.code ?? '');
+      if (code === String(statusCodes.SIGN_IN_CANCELLED)) {
         // User cancelled — not an error
-      } else if (error?.code === statusCodes.IN_PROGRESS) {
+      } else if (code === String(statusCodes.IN_PROGRESS)) {
         // Already in progress
-      } else if (error?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+      } else if (code === String(statusCodes.PLAY_SERVICES_NOT_AVAILABLE)) {
         onError?.('Play services not available or outdated.');
-      } else if (error?.code === statusCodes.DEVELOPER_ERROR) {
+      } else if (code === '10' || code === 'DEVELOPER_ERROR') {
         onError?.(
           'Google Sign-In is misconfigured for this build (DEVELOPER_ERROR). ' +
-          'The SHA-1 fingerprint of this build does not match the one registered in Google Cloud Console for this package name.'
+          'Check the Android package and signing SHA-1, and the Web OAuth client ID, in Google Cloud Console.'
         );
       } else {
         onError?.(error?.message || 'Google sign-in failed.');
@@ -263,6 +265,7 @@ function useWebGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
   const [isExchanging, setIsExchanging] = useState(false);
+  const handledResponse = useRef<any>(null);
   const [nonce] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -279,7 +282,10 @@ function useWebGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
 
   useEffect(() => {
     async function processResponse() {
-      if (!response) return;
+      if (!response || handledResponse.current === response) return;
+      // Callbacks change when the screen/auth state rerenders. Claim this result
+      // before setting state or awaiting the backend so it is exchanged only once.
+      handledResponse.current = response;
 
       if (response.type === 'error') {
         onError?.(response.error?.message || 'Google authentication returned an error.');
@@ -324,10 +330,14 @@ function useWebGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
       return;
     }
 
-    await promptAsync({
-      useProxy: false,
-      windowFeatures: { width: 500, height: 650 },
-    });
+    try {
+      await promptAsync({
+        useProxy: false,
+        windowFeatures: { width: 500, height: 650 },
+      });
+    } catch (error: any) {
+      onError?.(error?.message || 'Unable to open Google sign-in. Please allow popups and try again.');
+    }
   }, [onError, promptAsync, request, webClientId]);
 
   return {
