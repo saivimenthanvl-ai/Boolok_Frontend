@@ -20,6 +20,7 @@ import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { savedReelsKey } from '../../lib/savedStorage';
 import { typography } from '../../constants/theme';
 import Animated, {
   FadeIn,
@@ -418,7 +419,7 @@ const VideoItem = ({
   const [isSaved, setIsSaved] = useState<boolean>(() => {
     if (Platform.OS === 'web') {
       try {
-        const savedRaw = localStorage.getItem('boolok_saved_reels');
+        const savedRaw = localStorage.getItem(savedReelsKey(user));
         if (savedRaw) {
           const parsed = JSON.parse(savedRaw);
           return Array.isArray(parsed) && parsed.some((r: any) => r._id === item._id || r.id === item._id);
@@ -518,7 +519,7 @@ const VideoItem = ({
           if (set[item._id]) setHasLiked(true);
         }
         // Saved state
-        const savedRaw = await SecureStore.getItemAsync('boolok_saved_reels');
+        const savedRaw = await SecureStore.getItemAsync(savedReelsKey(user));
         if (savedRaw) {
           const parsed = JSON.parse(savedRaw);
           if (Array.isArray(parsed) && parsed.some((r: any) => r._id === item._id || r.id === item._id)) {
@@ -882,7 +883,7 @@ const VideoItem = ({
 
     if (Platform.OS === 'web') {
       try {
-        const raw = localStorage.getItem('boolok_saved_reels');
+        const raw = localStorage.getItem(savedReelsKey(user));
         let list: any[] = raw ? JSON.parse(raw) : [];
         if (nextSaved) {
           if (!list.some((r) => r._id === item._id || r.id === item._id)) {
@@ -891,11 +892,11 @@ const VideoItem = ({
         } else {
           list = list.filter((r) => r._id !== item._id && r.id !== item._id);
         }
-        localStorage.setItem('boolok_saved_reels', JSON.stringify(list));
+        localStorage.setItem(savedReelsKey(user), JSON.stringify(list));
       } catch (_) {}
     } else {
       try {
-        const raw = await SecureStore.getItemAsync('boolok_saved_reels');
+        const raw = await SecureStore.getItemAsync(savedReelsKey(user));
         let list: any[] = raw ? JSON.parse(raw) : [];
         if (nextSaved) {
           if (!list.some((r) => r._id === item._id || r.id === item._id)) {
@@ -904,7 +905,7 @@ const VideoItem = ({
         } else {
           list = list.filter((r) => r._id !== item._id && r.id !== item._id);
         }
-        await SecureStore.setItemAsync('boolok_saved_reels', JSON.stringify(list));
+        await SecureStore.setItemAsync(savedReelsKey(user), JSON.stringify(list));
       } catch (_) {}
     }
   };

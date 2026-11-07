@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
+import { savedPostsKey, savedReelsKey } from '../../lib/savedStorage';
 import { useTheme } from '../../context/ThemeContext';
 import { spacing, typography, radius } from '../../constants/theme';
 import LoadingScreen from '../../components/LoadingScreen';
@@ -411,7 +412,7 @@ const ProfileReelItem = ({ reel }: { reel: any }) => {
   const [isSaved, setIsSaved] = useState<boolean>(() => {
     if (Platform.OS === 'web') {
       try {
-        const raw = localStorage.getItem('boolok_saved_reels');
+        const raw = localStorage.getItem(savedReelsKey(user));
         if (raw) {
           const list = JSON.parse(raw);
           const rId = reel._id || reel.id;
@@ -429,26 +430,40 @@ const ProfileReelItem = ({ reel }: { reel: any }) => {
       let list: any[] = [];
       const rId = reel._id || reel.id;
       if (Platform.OS === 'web') {
-        const raw = localStorage.getItem('boolok_saved_reels');
+        const raw = localStorage.getItem(savedReelsKey(user));
         if (raw) list = JSON.parse(raw) || [];
         if (nextSaved) {
           list = [reel, ...list.filter((r: any) => (r._id || r.id) !== rId)];
         } else {
           list = list.filter((r: any) => (r._id || r.id) !== rId);
         }
-        localStorage.setItem('boolok_saved_reels', JSON.stringify(list));
+        localStorage.setItem(savedReelsKey(user), JSON.stringify(list));
       } else {
-        const raw = await SecureStore.getItemAsync('boolok_saved_reels');
+        const raw = await SecureStore.getItemAsync(savedReelsKey(user));
         if (raw) list = JSON.parse(raw) || [];
         if (nextSaved) {
           list = [reel, ...list.filter((r: any) => (r._id || r.id) !== rId)];
         } else {
           list = list.filter((r: any) => (r._id || r.id) !== rId);
         }
-        await SecureStore.setItemAsync('boolok_saved_reels', JSON.stringify(list));
+        await SecureStore.setItemAsync(savedReelsKey(user), JSON.stringify(list));
       }
     } catch (_) {}
   };
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    SecureStore.getItemAsync(savedReelsKey(user)).then((raw) => {
+      if (cancelled || !raw) return;
+      try {
+        const list = JSON.parse(raw);
+        const rId = reel._id || reel.id;
+        setIsSaved(Array.isArray(list) && list.some((r: any) => (r._id || r.id) === rId));
+      } catch (_) {}
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [reel._id, reel.id, user?.id, user?._id]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -1041,30 +1056,30 @@ export default function ProfessionalUserProfileScreen() {
   const loadSavedData = useCallback(async () => {
     try {
       if (Platform.OS === 'web') {
-        const rawP = localStorage.getItem('boolok_saved_posts');
+        const rawP = localStorage.getItem(savedPostsKey(viewer));
         if (rawP) {
           const list = JSON.parse(rawP);
           if (Array.isArray(list)) setSavedPosts(list);
         }
-        const rawR = localStorage.getItem('boolok_saved_reels');
+        const rawR = localStorage.getItem(savedReelsKey(viewer));
         if (rawR) {
           const list = JSON.parse(rawR);
           if (Array.isArray(list)) setSavedReels(list);
         }
       } else {
-        const rawP = await SecureStore.getItemAsync('boolok_saved_posts');
+        const rawP = await SecureStore.getItemAsync(savedPostsKey(viewer));
         if (rawP) {
           const list = JSON.parse(rawP);
           if (Array.isArray(list)) setSavedPosts(list);
         }
-        const rawR = await SecureStore.getItemAsync('boolok_saved_reels');
+        const rawR = await SecureStore.getItemAsync(savedReelsKey(viewer));
         if (rawR) {
           const list = JSON.parse(rawR);
           if (Array.isArray(list)) setSavedReels(list);
         }
       }
     } catch (_) {}
-  }, []);
+  }, [viewer?.id, viewer?._id]);
 
   useEffect(() => {
     loadSavedData();
@@ -1085,9 +1100,9 @@ export default function ProfessionalUserProfileScreen() {
     setSavedPosts(next);
     try {
       if (Platform.OS === 'web') {
-        localStorage.setItem('boolok_saved_posts', JSON.stringify(next));
+        localStorage.setItem(savedPostsKey(viewer), JSON.stringify(next));
       } else {
-        await SecureStore.setItemAsync('boolok_saved_posts', JSON.stringify(next));
+        await SecureStore.setItemAsync(savedPostsKey(viewer), JSON.stringify(next));
       }
     } catch (_) {}
   };
@@ -1104,15 +1119,15 @@ export default function ProfessionalUserProfileScreen() {
     setSavedReels(next);
     try {
       if (Platform.OS === 'web') {
-        localStorage.setItem('boolok_saved_reels', JSON.stringify(next));
+        localStorage.setItem(savedReelsKey(viewer), JSON.stringify(next));
       } else {
-        await SecureStore.setItemAsync('boolok_saved_reels', JSON.stringify(next));
+        await SecureStore.setItemAsync(savedReelsKey(viewer), JSON.stringify(next));
       }
     } catch (_) {}
   };
 
   // Helper functions for real-time counts
-  const getLiveCommentsCount = (id: string, defaultComments: any) => {
+  const getLiveCommentsCount = (id: string, defaultComments: any, fallbackCount?: number) => {
     if (Platform.OS === 'web') {
       try {
         const raw = localStorage.getItem(`boolok_comments_${id}`);
@@ -1122,7 +1137,9 @@ export default function ProfessionalUserProfileScreen() {
         }
       } catch (_) {}
     }
-    return Array.isArray(defaultComments) ? defaultComments.length : (typeof defaultComments === 'number' ? defaultComments : 0);
+    if (Array.isArray(defaultComments) && defaultComments.length > 0) return defaultComments.length;
+    if (typeof fallbackCount === 'number') return fallbackCount;
+    return typeof defaultComments === 'number' ? defaultComments : 0;
   };
 
   const getLiveLikesCount = (id: string, defaultLikes: any, fallbackCount?: number) => {
@@ -2822,7 +2839,7 @@ export default function ProfessionalUserProfileScreen() {
                   const viewerId = viewer?.id || viewer?._id || '';
                   const isPostOwner = isSelf || (authorId && (authorId === viewerId || (viewer?.username && authorId === viewer.username)));
                   const postLikesCount = getLiveLikesCount(post._id, post.likes, post.likesCount);
-                  const postCommentsCount = getLiveCommentsCount(post._id, post.comments);
+                  const postCommentsCount = getLiveCommentsCount(post._id, post.comments, post.commentsCount);
                   const isPinned = Boolean(post.isPinned || post.pinned);
                   const isSavedItem = isPostSaved(post._id);
 
@@ -2948,7 +2965,7 @@ export default function ProfessionalUserProfileScreen() {
                 onLayout={(e) => setGridContainerWidth(e.nativeEvent.layout.width)}
               >
                 {reels.map((reel: any) => {
-                  const reelCommentsCount = getLiveCommentsCount(reel._id, reel.comments);
+                  const reelCommentsCount = getLiveCommentsCount(reel._id, reel.comments, reel.commentsCount);
                   const reelViews = getReelViewsDisplay(reel);
                   const isSavedItem = isReelSaved(reel._id || reel.id);
 
@@ -3116,7 +3133,7 @@ export default function ProfessionalUserProfileScreen() {
                     {/* Render Saved Posts */}
                     {displayPosts.map((post: any) => {
                       const postLikesCount = getLiveLikesCount(post._id, post.likes, post.likesCount);
-                      const postCommentsCount = getLiveCommentsCount(post._id, post.comments);
+                      const postCommentsCount = getLiveCommentsCount(post._id, post.comments, post.commentsCount);
 
                       return (
                         <Pressable
@@ -3179,7 +3196,7 @@ export default function ProfessionalUserProfileScreen() {
 
                     {/* Render Saved Reels */}
                     {displayReels.map((reel: any) => {
-                      const reelCommentsCount = getLiveCommentsCount(reel._id, reel.comments);
+                      const reelCommentsCount = getLiveCommentsCount(reel._id, reel.comments, reel.commentsCount);
                       const reelViews = getReelViewsDisplay(reel);
 
                       return (
