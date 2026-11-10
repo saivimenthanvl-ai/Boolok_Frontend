@@ -61,17 +61,19 @@ export default function LoginScreen() {
         const response = await axios.post(`${API_BASE_URL}/api/auth/google`, {
           idToken,
         });
-        if (response.data.token) {
-          await signIn(response.data.token, response.data.user);
-          router.push('/(app)/dashboard');
+        if (!response.data?.token || !response.data?.user) {
+          alert('BOOLOK could not start your session. Please try again.');
+          return;
         }
+        await signIn(response.data.token, response.data.user);
+        router.replace('/(app)/dashboard');
       } catch (error: any) {
         alert(error.response?.data?.message || 'Google sign-in failed. Please try again.');
       } finally {
         setIsGoogleSigningIn(false);
       }
     },
-    [signIn]
+    [router, signIn]
   );
 
   const { promptGoogleSignIn, isGoogleLoading } = useGoogleAuth({
