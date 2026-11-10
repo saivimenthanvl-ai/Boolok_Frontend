@@ -211,6 +211,11 @@ function useNativeGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
+      // Clear the remembered Google choice on Android before an explicit login.
+      if (Platform.OS === 'android' && GoogleSignin.hasPreviousSignIn()) {
+        await GoogleSignin.signOut();
+      }
+
       const result = await GoogleSignin.signIn();
       if (result?.type === 'cancelled') return;
       const idToken = result?.data?.idToken ?? result?.idToken;
@@ -234,7 +239,8 @@ function useNativeGoogleAuth({ onSuccess, onError }: GoogleAuthOptions) {
           'Check the Android package and signing SHA-1, and the Web OAuth client ID, in Google Cloud Console.'
         );
       } else {
-        onError?.(error?.message || 'Google sign-in failed.');
+        const status = /^(?:[0-9]+|[A-Z_]+)$/.test(code) ? ` (${code})` : '';
+        onError?.(`Google sign-in failed${status}. Please try again.`);
       }
     } finally {
       setIsGoogleLoading(false);
